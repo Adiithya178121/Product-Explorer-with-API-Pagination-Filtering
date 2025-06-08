@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Product Explorer</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    .controls { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 10px; background: #f9f9f9; text-align: center; }
+    .card img { max-width: 100%; height: 150px; object-fit: contain; }
+    .pagination { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+    input, select, button { padding: 5px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Product Explorer</h1>
+  <div class="controls">
+    <input type="text" id="search" placeholder="Search products..." />
+    <select id="sort">
+      <option value="">Sort by</option>
+      <option value="price-asc">Price: Low to High</option>
+      <option value="price-desc">Price: High to Low</option>
+      <option value="title">Title (A-Z)</option>
+    </select>
+    <select id="filter">
+      <option value="">All Categories</option>
+    </select>
+  </div>
+
+  <div id="product-grid" class="grid"></div>
+  <div class="pagination">
+    <button id="prev">Previous</button>
+    <span id="page-num">Page 1</span>
+    <button id="next">Next</button>
+  </div>
+
+  <script>
+    const API = "https://fakestoreapi.com/products";
+    const grid = document.getElementById("product-grid");
+    const searchInput = document.getElementById("search");
+    const sortSelect = document.getElementById("sort");
+    const filterSelect = document.getElementById("filter");
+    const prevBtn = document.getElementById("prev");
+    const nextBtn = document.getElementById("next");
+    const pageNum = document.getElementById("page-num");
+
+    let products = [];
+    let filtered = [];
+    let currentPage = parseInt(localStorage.getItem("page")) || 1;
+    const perPage = 8;
+    let debounceTimer;
+
+    async function fetchProducts() {
+      const res = await fetch(API);
+      products = await res.json();
+      const categories = [...new Set(products.map(p => p.category))];
+      categories.forEach(cat => {
+        const option = document.createElement("option");
+        option.value = cat;
+        option.textContent = cat;
+        filterSelect.appendChild(option);
+      });
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const search = searchInput.value.toLowerCase();
+      const sort = sortSelect.value;
+      const filter = filterSelect.value;
+
+      filtered = products.filter(p =>
+        (!filter || p.category === filter) &&
+        (!search || p.title.toLowerCase().includes(search))
+      );
+
+      if (sort === "price-asc") filtered.sort((a, b) => a.price - b.price);
+      else if (sort === "price-desc") filtered.sort((a, b) => b.price - a.price);
+      else if (sort === "title") filtered.sort((a, b) => a.title.localeCompare(b.title));
+
+      currentPage = 1;
+      localStorage.setItem("page", currentPage);
+      render();
+    }
+
+    function render() {
+      const start = (currentPage - 1) * perPage;
+      const end = start + perPage;
+      const pageItems = filtered.slice(start, end);
+
+      grid.innerHTML = pageItems.map(p => `
+        <div class="card">
+          <img src="${p.image}" alt="${p.title}" />
+          <h4>${p.title}</h4>
+          <p>₹${p.price}</p>
+          <small>${p.category}</small>
+        </div>
+      `).join("");
+
+      pageNum.textContent = `Page ${currentPage}`;
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = end >= filtered.length;
+    }
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(applyFilters, 1000);
+    });
+    sortSelect.addEventListener("change", applyFilters);
+    filterSelect.addEventListener("change", applyFilters);
+
+    prevBtn.onclick = () => {
+      if (currentPage > 1) {
+        currentPage--;
+        localStorage.setItem("page", currentPage);
+        render();
+      }
+    };
+    nextBtn.onclick = () => {
+      if ((currentPage * perPage) < filtered.length) {
+        currentPage++;
+        localStorage.setItem("page", currentPage);
+        render();
+      }
+    };
+
+    fetchProducts();
+  </script>
+</body>
+</html>
